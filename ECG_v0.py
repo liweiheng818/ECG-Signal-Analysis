@@ -8,18 +8,16 @@ Created on Thu Nov 14 13:55:00 2019
 import torch
 import torch.utils.data
 import torch.nn as nn
-#import numpy as np
+import numpy as np
 import pandas as pd
-#import matplotlib.pyplot as plt
+import matplotlib.pyplot as plt
 from sklearn.preprocessing import LabelEncoder
 from sklearn.model_selection import train_test_split
-from torch.autograd import Variable
 
 PATH = "D:/Study/GitHub/ECG-Signal-Analysis/Data/test_1000.csv"
 LR = 1e-2
-BATCH_SIZE = 1
-EPOCH = 100
-TOL = 1e-3
+BATCH_SIZE = 128
+EPOCH = 1000
 
 class arima():
     pass
@@ -28,21 +26,25 @@ class particle_filter():
     pass
 
 class prob_rnn(nn.Module):
-    def __init__(self, input_size=1000, hidden_size=128, num_layers=2, output_size=3):
+    def __init__(self, input_size=1000, hidden_size=128, num_layers=1, output_size=3):
         super(prob_rnn, self).__init__()
-        self.lstm = nn.LSTM(input_size, hidden_size, num_layers, batch_first=True)
+        self.lstm = nn.LSTM(input_size, 
+                            hidden_size, 
+                            num_layers, 
+                            batch_first=True)
         self.linear = nn.Linear(hidden_size, output_size)
+        self.sm = nn.LogSoftmax(dim=1)
     
     def forward(self, x):
         x, _ = self.lstm(x)
         x = self.linear(x[:, -1, :])
-        
+        x = self.sm(x)
+
         return x
 
 def build_dataset(path):
     
-    data = pd.read_csv(path)
-    data.drop(["Unnamed: 0"], axis=1, inplace=True)
+    data = pd.read_csv(path, index_col=0)
     le = LabelEncoder()
     data.Label = le.fit_transform(data.Label)
     y = data.Label.values
@@ -72,21 +74,24 @@ def learn(train, test):
     for ep in range(EPOCH):
         ep += 1
         for _, (x, y) in enumerate(train):
-            var_x, var_y = Variable(x.view(-1, BATCH_SIZE, 1000)), Variable(y.view(BATCH_SIZE))
-            out = net(var_x)  
-            loss = loss_func(out, var_y)
+            x = x.view(-1, 1, 1000)
+            out = net(x)  
+            loss = loss_func(out, y)
             optimizer.zero_grad()
             loss.backward()
             optimizer.step()
           
         count = 0
         for _, (x, y) in enumerate(test):
-            var_x, var_y = Variable(x.view(-1, BATCH_SIZE, 1000)), y.view(BATCH_SIZE).numpy()
-            pred = torch.max(net(var_x), 1)[1].data.numpy()
-            count += (pred == var_y).astype(int).sum()
+            x, y = x.view(-1, 1, 1000), y.numpy()
+            pred = torch.max(net(x), 1)[1].data.numpy()
+            count += (pred == y).astype(int).sum()
         accuracy = count / len(test.dataset)
-    
-        print("Epoch: ", ep, " | Loss: %.4f" % loss.data.numpy(), " | Val score: %.2f" % accuracy)
+        
+        if ep%10 == 0:
+            print("Epoch: ", ep, 
+                  " | Loss: %.4f" % loss.data.numpy(), 
+                  " | Val score: %.2f" % accuracy)
         loss_data.append(loss.data.numpy())
         val_score.append(accuracy)
         
@@ -101,10 +106,17 @@ def learn(train, test):
     
     return net, loss_data, val_score
 
-def plot():
-    pass
+def plot(loss, val_score):
+    
+    plt.figure(figsize=(12, 5))
+    plt.plot(np.arange(len(loss)), loss)
+    plt.title("Loss")
+    plt.figure(figsize=(12, 5))
+    plt.plot(np.arange(len(val_score)), val_score)
+    plt.title("Validation accuracy")
 
 if __name__ == "__main__":
     train, test = build_dataset(PATH)
     net, loss, val_score = learn(train, test)
+    plot(loss, val_score)
     
