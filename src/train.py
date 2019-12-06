@@ -10,21 +10,22 @@ import torch.utils.data
 import torch.nn as nn
 import numpy as np
 import matplotlib.pyplot as plt
-from data import build_dataset
+from data import build_dataloader
 
 torch.manual_seed(0)
 np.random.seed(0)
 
-PATH = "D:/Study/GitHub/ECG-Signal-Analysis/Data/test_1000.csv"
+#PATH = "D:/Study/GitHub/ECG-Signal-Analysis/Data/test_1000.csv"
+PATH = "D:/ecg/sample2017/sample2017/training2017"
 LR = 1e-2
 BATCH_SIZE = 128
-EPOCH = 100
+EPOCH = 20
 
 class arima():
     pass
 
 class prob_rnn(nn.Module):
-    def __init__(self, input_size=1000, hidden_size=100, num_layers=2, output_size=3, bidir=True):
+    def __init__(self, input_size=9000, hidden_size=100, num_layers=2, output_size=2, bidir=True):
         super(prob_rnn, self).__init__()
         self.dim = 2 if bidir == True else 1
         self.lstm = nn.GRU(input_size, hidden_size, num_layers, batch_first=True, bidirectional=bidir)
@@ -49,7 +50,7 @@ def learn(train, test):
     for ep in range(EPOCH):
         ep += 1
         for _, (x, y) in enumerate(train):
-            x = x.view(-1, 1, 1000)
+            x = x.view(-1, 2, 9000)
             out = net(x)  
             loss = loss_func(out, y)
             optimizer.zero_grad()
@@ -58,12 +59,12 @@ def learn(train, test):
         
         count = 0
         for _, (x, y) in enumerate(test):
-            x, y = x.view(-1, 1, 1000), y.numpy()
+            x, y = x.view(-1, 2, 9000), y.numpy()
             pred = torch.max(net(x), 1)[1].data.numpy()
             count += (pred == y).astype(int).sum()
         accuracy = count / len(test.dataset)
         
-        if ep%10 == 0:
+        if ep%1 == 0:
             print("Epoch: ", ep, 
                   " | Loss: %.4f" % loss.data.numpy(), 
                   " | Val score: %.2f" % accuracy)
@@ -87,7 +88,7 @@ def plot(loss, val_score):
     print("The average validation score is: ", np.mean(val_score))
 
 if __name__ == "__main__":
-    train, test = build_dataset(PATH)
+    train, test = build_dataloader(PATH)
     net, loss, val_score = learn(train, test)
     plot(loss, val_score)
     
