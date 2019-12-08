@@ -4,34 +4,52 @@ Created on Fri Dec  6 19:22:01 2019
 
 @author: Arcy
 """
+#
+import torch
 import numpy as np
-from utils import get_ecg, get_rpeak, build_dataloader
-from train import learn, prob_rnn
-from sklearn.preprocessing import StandardScaler
+from utils import get_ecg, qrs_detection, get_segments
+from data import build_dataloader
+from train import learn, plot, model
 
+#
 PATH = "D:/ecg/sample2017/sample2017/training2017"
-BATCH_SIZE = 120
+BATCH_SIZE = 2048
+EPOCH = 50
 FS = 300
 LENGTH = 9000
-NLAGS = 999
-RESAMP = True
+LR = 1e-3
+RESAMP = False
 
-Signals, Labels = get_ecg(PATH)
+#
+try:
+    segments = np.load('segment.npy')
+except:
+    signals, labels = get_ecg(PATH, length=LENGTH)
+    segments = np.zeros((245990, 1001))
+    k = 0
+    
+    for i, record in enumerate(signals):
+        rp = qrs_detection(record, sample_rate=FS)
+        seg = get_segments(record, rp, labels[i])
+        if seg is not None:
+            segments[k:k+seg.shape[0], :] = seg
+            k += seg.shape[0]
+    del signals, labels
+    
+    np.save('segment.npy', segments)
 
-R_Intervals = np.zeros((Signals.shape[0], 29))
-R_val = np.zeros((Signals.shape[0], 30))
-for i, record in enumerate(Signals):
-    rp, rin = get_rpeak(record, FS)
-    R_Intervals[i, :] = rin
-    for j, val in enumerate(rp):
-        R_val[i, j] = Signals[i, val]
+X, y = segments[:, :-1], segments[:, -1][:, np.newaxis]
+del segments
 
-st = StandardScaler()
-R_val = st.fit_transform(R_val)
-
-X = np.hstack((R_val[:, :-1], R_Intervals))
-y = Labels
-
-del Signals, Labels, i, record, rp, rin, R_Intervals, R_val
 train, test = build_dataloader(X, y, resamp=RESAMP, batch_size=BATCH_SIZE)
-net, loss, val_score = learn(train, test)
+del X, y
+
+net = model()
+try:
+    params = torch.load("net_0.81.pkl")
+    net.load_state_dict(params["model_state_dict"])
+except:
+    pass
+
+loss, val_score = learn(net, train, test, lr=LR, epoch=EPOCH)
+plot(loss, val_score)
