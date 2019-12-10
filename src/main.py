@@ -4,12 +4,14 @@ Created on Fri Dec  6 19:22:01 2019
 
 @author: Arcy
 """
+
 #
 import torch
 import numpy as np
-from utils import get_ecg, qrs_detection, get_segments
+
+from utils import get_ecg, qrs_detection, get_segments, plot
 from data import build_dataloader
-from train import learn, plot, model
+from train import learn, cnn_feed_lstm
 
 #
 PATH = "D:/ecg/sample2017/sample2017/training2017"
@@ -22,7 +24,7 @@ RESAMP = False
 
 #
 try:
-    segments = np.load('segment.npy')
+    segments = np.load('../data/segment.npy')
 except:
     signals, labels = get_ecg(PATH, length=LENGTH)
     segments = np.zeros((245990, 1001))
@@ -36,7 +38,7 @@ except:
             k += seg.shape[0]
     del signals, labels
     
-    np.save('segment.npy', segments)
+    np.save('./data/segment.npy', segments)
 
 X, y = segments[:, :-1], segments[:, -1][:, np.newaxis]
 del segments
@@ -44,12 +46,13 @@ del segments
 train, test = build_dataloader(X, y, resamp=RESAMP, batch_size=BATCH_SIZE)
 del X, y
 
-net = model()
+net = cnn_feed_lstm()
 try:
-    params = torch.load("net_0.81.pkl")
+    params = torch.load("../params/net_0.81.pkl")
     net.load_state_dict(params["model_state_dict"])
 except:
     pass
 
 loss, val_score = learn(net, train, test, lr=LR, epoch=EPOCH)
 plot(loss, val_score)
+

@@ -9,6 +9,7 @@ Created on Mon Nov 18 19:26:29 2019
 import torch
 import numpy as np
 import pandas as pd
+
 from sklearn.utils import resample
 from sklearn.model_selection import train_test_split
 
@@ -48,6 +49,7 @@ def build_dataloader(X, y, resamp=True, batch_size=128):
     
     return train_loader, val_loader
 
+#
 def resample_data(data, label):
     
     X = pd.concat([data, label], axis=1)

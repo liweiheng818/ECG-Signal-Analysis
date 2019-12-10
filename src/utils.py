@@ -11,12 +11,13 @@ import scipy.io
 import pywt as pw
 import numpy as np
 import pandas as pd
+import matplotlib.pyplot as plt
 
 from sklearn.preprocessing import LabelEncoder, StandardScaler
 
 np.random.seed(7)
 
-#
+# get ecg signals from records
 def get_ecg(path, length=9000):
     
     labels = pd.read_csv(path + '/' + 'REFERENCE.csv', index_col=0)
@@ -106,6 +107,7 @@ def qrs_detection(signal, sample_rate=300, max_bpm=300):
     
     return r_peaks
 
+#
 def get_segments(signal, rpeaks, label, length=1000):
     
     n = rpeaks.shape[0]
@@ -131,7 +133,6 @@ def get_segments(signal, rpeaks, label, length=1000):
             r_padding = signal.shape[0] - 1 - r
             l_padding = l - signal.shape[0] + 1 + length
             
-        #print(l-l_padding, r+r_padding)
         segments.append(signal[l-l_padding:r+r_padding].copy())
     
     segments = np.array(segments)
@@ -139,19 +140,47 @@ def get_segments(signal, rpeaks, label, length=1000):
     return np.hstack((segments, labels[:, np.newaxis]))
 
 #
-if __name__ == "__main__":
+def plot(loss, val_score):
     
-    PATH = "D:/ecg/sample2017/sample2017/training2017"
-    Signals, Labels = get_ecg(PATH)
-    segments = np.zeros((245990, 1001))
-    k = 0
-    
-    for i, record in enumerate(Signals):
-        rp = qrs_detection(record)
-        seg = get_segments(record, rp, Labels[i])
-        if seg is not None:
-            segments[k:k+seg.shape[0], :] = seg
-            k += seg.shape[0]
-    
-    del Signals, Labels
+    plt.figure(figsize=(12, 5))
+    plt.plot(np.arange(len(loss)), loss)
+    plt.title("Loss")
+    plt.figure(figsize=(12, 5))
+    plt.plot(np.arange(len(val_score)), val_score)
+    plt.title("Validation accuracy")
+    print("The average validation score is: %.2f" % np.mean(val_score[1:]))
+
+#
+def plot_confusion_matrix(cm, classes,
+                          normalize=False,
+                          title='Confusion matrix',
+                          cmap=plt.cm.Blues):
+    """
+    This function prints and plots the confusion matrix.
+    Normalization can be applied by setting `normalize=True`.
+    """
+    import itertools
+    if normalize:
+        cm = cm.astype('float') / cm.sum(axis=1)[:, np.newaxis]
+        print("Normalized confusion matrix")
+    else:
+        print('Confusion matrix, without normalization')
+
+    plt.imshow(cm, interpolation='nearest', cmap=cmap)
+    plt.title(title)
+    plt.colorbar()
+    tick_marks = np.arange(len(classes))
+    plt.xticks(tick_marks, classes, rotation=45)
+    plt.yticks(tick_marks, classes)
+
+    fmt = '.2f' if normalize else 'd'
+    thresh = cm.max() / 2.
+    for i, j in itertools.product(range(cm.shape[0]), range(cm.shape[1])):
+        plt.text(j, i, format(cm[i, j], fmt),
+                 horizontalalignment="center",
+                 color="white" if cm[i, j] > thresh else "black")
+
+    plt.ylabel('True label')
+    plt.xlabel('Predicted label')
+    plt.tight_layout()
     
